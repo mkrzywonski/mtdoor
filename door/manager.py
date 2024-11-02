@@ -1,9 +1,11 @@
 from configparser import ConfigParser
 from inspect import getmodule
-
 from meshtastic.mesh_interface import MeshInterface
 from loguru import logger as log
 from pubsub import pub
+import math
+import requests
+import json
 
 from .base_command import (
     BaseCommand,
@@ -12,6 +14,16 @@ from .base_command import (
     CommandActionNotImplemented,
 )
 
+def haversine(lat1, lon1, lat2, lon2):
+    """Calculate the great-circle distance between two points on the Earth in miles."""
+    R = 3958.8  # Radius of Earth in miles
+    phi1 = math.radians(lat1)
+    phi2 = math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlambda = math.radians(lon2 - lon1)
+    a = math.sin(dphi / 2)**2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2)**2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    return R * c
 
 class DoorManager:
     # use this topic to send response messages
@@ -21,11 +33,16 @@ class DoorManager:
         self.interface = interface
         self.settings = settings
         self.me = interface.getMyUser()["id"]
+        self.distance_filter = settings.getfloat("global", "heatmap_filter_distance", fallback=5.0)
+        self.snr_filter = settings.getfloat("global", "heatmap_filter_snr", fallback=6)
+        self.server_url = settings.get("global", "server_url", fallback=None)
+        self.auth_token = settings.get("global", "server_auth_token", fallback=None)
 
         # keep track of the commands added, don't let duplicates happen
         self.commands = []
 
         pub.subscribe(self.on_text, "meshtastic.receive.text")
+        pub.subscribe(self.on_packet, "meshtastic.receive")
         pub.subscribe(self.send_dm, self.dm_topic)
 
         log.info(f"DoorManager is connected to {self.me}")
@@ -133,7 +150,7 @@ class DoorManager:
 
         # show signal strength data for sending node
         if msg.lower()[:4] == "ping":
-            response = f"Node: {node}\nHops: {hops}\nSNR: {snr}\nRSSI: {rssi}"
+            response = f"Received ping from node {node}\nHops: {hops}\nSNR: {snr}\nRSSI: {rssi}"
             pub.sendMessage(self.dm_topic, message=response, node=node)
             return
 
@@ -170,3 +187,109 @@ class DoorManager:
                 command.shutdown()
             except CommandActionNotImplemented:
                 pass
+
+    def on_packet(self, packet, interface):
+        """Handle all incoming packets, focusing on 0-hop packets with position data."""
+
+        # Step 1: Check if packet is from the local node
+        node_id = packet["fromId"]
+        if node_id == self.me:
+            return
+
+        log.info(f"Received packet from node: {node_id}")
+
+        # Step 2: Access node_info from cached data directly as a dictionary
+        node_info = self.interface.nodes.get(node_id)
+        position_data = packet["decoded"].get("position")  # Attempt to get position data from packet
+
+        # Step 3: Get latitude and longitude from position data or node_info if available
+        if position_data:
+            latitude = position_data.get("latitude")
+            longitude = position_data.get("longitude")
+            log.info(f"Position from packet: Latitude: {latitude}, Longitude: {longitude}")
+        elif node_info and "position" in node_info:
+            latitude = node_info["position"].get("latitude")
+            longitude = node_info["position"].get("longitude")
+            log.info(f"Position from node_info: Latitude: {latitude}, Longitude: {longitude}")
+        else:
+            log.info(f"No position data available for node {node_id}")
+            return  # Skip if no position data from either source
+
+        # Step 4: Retrieve hop count from node_info if available, otherwise calculate it
+        hop_count = node_info.get("deviceMetrics", {}).get("hopsAway") if node_info else None
+        if hop_count is None:
+            hop_start = packet.get("hopStart", None)
+            hop_limit = packet.get("hopLimit", None)
+            
+            if hop_start is not None and hop_limit is not None:
+                hop_count = hop_start - hop_limit
+            elif hop_limit is not None:
+                hop_count = hop_limit
+            else:
+                hop_count = 0  # Default to local packet if no hop data exists
+
+        log.info(f"hop_count: {hop_count}")
+
+        # Step 5: Process only packets with hopCount = 0
+        if hop_count != 0:
+            log.info(f"Ignoring packet with hop count {hop_count}")
+            return
+
+        # Step 6: Check for SNR and RSSI
+        snr = packet.get('rxSnr')
+        rssi = packet.get('rxRssi')
+        if snr is None or rssi is None:
+            log.info(f"No SNR/RSSI data for packet from {node_id}")
+            return  # Ignore packets without SNR/RSSI data
+
+        # Get my node's position from cached data
+        my_node = self.interface.nodes.get(self.me)
+        if not my_node or "position" not in my_node:
+            log.warning("Missing local node position data; cannot calculate distance.")
+            return
+
+        my_latitude = my_node["position"].get("latitude")
+        my_longitude = my_node["position"].get("longitude")
+
+        # Step 7: Calculate distance between my node and sending node
+        distance = haversine(my_latitude, my_longitude, latitude, longitude)
+
+        # Step 8: Apply filtering based on distance and SNR
+        if distance > self.distance_filter and snr > self.snr_filter:
+            log.info(
+                f"Ignoring impossibly far/strong packet from {node_id} ({node_info['user'].get('longName', 'Unknown') if node_info else 'Unknown'})\n"
+                f"Distance: {distance:.2f} miles, SNR: {snr}"
+            )
+            return
+
+        # Step 9: Log relevant data for packets that pass filtering
+        log.info(
+            f"Node: {node_id} ({node_info['user'].get('longName', 'Unknown') if node_info else 'Unknown'})\n"
+            f"Distance: {distance:.2f} miles, SNR: {snr}, RSSI: {rssi}\n"
+            f"Latitude: {latitude}, Longitude: {longitude}"
+        )
+
+        # Step 10: Prepare data to send to the server
+        data = {
+            "node_id": node_id,
+            "latitude": latitude,
+            "longitude": longitude,
+            "distance": distance,
+            "snr": snr,
+            "rssi": rssi,
+            "timestamp": packet.get("rxTime"),
+        }
+
+        # Step 11: Post data to the server if the server URL is set
+        if self.server_url:
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self.auth_token}" if self.auth_token else None,
+            }
+            
+            try:
+                response = requests.post(self.server_url, headers=headers, data=json.dumps(data))
+                response.raise_for_status()
+                log.info(f"Successfully posted data to server for node {node_id}")
+            except requests.RequestException as e:
+                log.error(f"Failed to post data to server: {e}")

@@ -170,8 +170,8 @@ class Weather(BaseCommand):
 
     def load(self):
         # TODO move these to configuration or ask the Meshtastic node
-        self.latitude = float(os.getenv("DEFAULT_LATITUDE", 33.548786))
-        self.longitude = float(os.getenv("DEFAULT_LONGITUDE", -101.905093))
+        self.latitude = float(os.getenv("DEFAULT_LATITUDE", 30.073088))
+        self.longitude = float(os.getenv("DEFAULT_LONGITUDE", -97.817800))
 
         # loading fails if we can't reach the weather API
         try:
@@ -204,6 +204,9 @@ class Weather(BaseCommand):
         for p in forecast_periods:
             proposed_addition = f"{p.name.upper()}: {p.detailedForecast}\n"
             if len(reply + proposed_addition) > 210:
+                # If reply is still empty, add only the first 210 characters of proposed_addition
+                if not reply:
+                    reply = f"{proposed_addition[:207]}..."
                 break
             else:
                 reply += proposed_addition
