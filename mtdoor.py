@@ -1,3 +1,4 @@
+#!/home/mike/mtdoor/.venv/bin/python3
 import sys, time, signal, argparse, configparser
 from pathlib import Path
 

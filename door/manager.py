@@ -123,10 +123,19 @@ class DoorManager:
             return
 
         node = packet["fromId"]
+        snr = packet['rxSnr']
+        rssi = packet['rxRssi']
+        hops = packet['hopStart'] - packet['hopLimit']
         msg: str = packet["decoded"]["payload"].decode("utf-8")
         response = None
 
         log.info(f"RX {node} ({len(msg):>3}): {msg}")
+
+        # show signal strength data for sending node
+        if msg.lower()[:4] == "ping":
+            response = f"Node: {node}\nHops: {hops}\nSNR: {snr}\nRSSI: {rssi}"
+            pub.sendMessage(self.dm_topic, message=response, node=node)
+            return
 
         # show help for commands
         if msg.lower()[:5] == "help ":

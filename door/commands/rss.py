@@ -17,15 +17,13 @@ class Feed(BaseModel):
 
 
 FEEDS = [
-    Feed(name="The Onion", short_name="onion", url="https://theonion.com/rss"),
-    Feed(
-        name="Wikinews",
-        short_name="wiki",
-        url="https://en.wikinews.org/w/index.php?title=Special:NewsFeed&feed=rss&categories=Published&notcategories=No%20publish%7CArchived%7cAutoArchived%7cdisputed&namespace=0&count=15&ordermethod=categoryadd&stablepages=only",
-    ),
-    Feed(name="Hackaday", short_name="hack", url="https://hackaday.com/feed/"),
-    Feed(name="2600.com", short_name="2600", url="http://www.2600.com/rss.xml"),
-    Feed(name="Yahoo News", short_name="yahoo", url="https://www.yahoo.com/news/rss"),
+    Feed(name="Meshtastic Blog", short_name="blog", url="https://meshtastic.org/blog/rss.xml"),
+    Feed(name="Meshtastic Discourse", short_name="discourse", url="https://meshtastic.discourse.group/posts.rss"),
+    Feed(name="RAK Wireless", short_name="rak", url="https://meshtastic.discourse.group/posts.rss"),
+    Feed(name="Seed Studio", short_name="seeed", url="https://www.seeedstudio.com/blog/feed/"),
+    Feed(name="Heltec", short_name="heltec", url="https://heltec.org/feed/"),
+    Feed(name="The Comms Channel", short_name="tc2", url="https://www.thecommschannel.com/index.xml"),
+    Feed(name="Jeff Geerling", short_name="geerling", url="https://www.jeffgeerling.com/blog/feed"),
 ]
 
 
