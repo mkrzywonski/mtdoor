@@ -1,6 +1,3 @@
-*.bsp
-__pycache__
-secrets
-*.swp
-*.bsp
-data/
+config.ini
+server.ini
+meshtastic_data.db

@@ -262,9 +262,11 @@ class DoorManager:
             )
             return
 
+        long_name = node_info['user'].get('longName', 'Unknown') if node_info else 'Unknown'
+
         # Step 9: Log relevant data for packets that pass filtering
         log.info(
-            f"Node: {node_id} ({node_info['user'].get('longName', 'Unknown') if node_info else 'Unknown'})\n"
+            f"Node: {node_id} ({long_name})\n"
             f"Distance: {distance:.2f} miles, SNR: {snr}, RSSI: {rssi}\n"
             f"Latitude: {latitude}, Longitude: {longitude}"
         )
@@ -272,6 +274,7 @@ class DoorManager:
         # Step 10: Prepare data to send to the server
         data = {
             "node_id": node_id,
+            "long_name": long_name,
             "latitude": latitude,
             "longitude": longitude,
             "distance": distance,
