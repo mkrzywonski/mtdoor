@@ -2,10 +2,14 @@ import threading
 import folium
 from folium.plugins import HeatMap
 from folium.features import DivIcon
-from flask import Flask, render_template_string
+from flask import Flask, render_template_string, request
 from . import BaseCommand
 from loguru import logger as log
 import time
+from datetime import datetime
+import pytz
+
+local_tz = pytz.timezone('America/Chicago')
 
 # Flask app setup for the heatmap
 app = Flask(__name__)
@@ -47,6 +51,12 @@ HTML_TEMPLATE = f"""
             }}
         }}
     </style>
+    <script>
+        function toggleShowAll() {{
+            let showAll = document.getElementById("showAllCheckbox").checked;
+            window.location.href = `/?show_all=${{showAll}}`;
+        }}
+    </script>
 </head>
 <body>
     <h1>{{{{ title }}}}</h1>
@@ -59,6 +69,10 @@ HTML_TEMPLATE = f"""
             <option value="300">5 minutes</option>
             <option value="900">15 minutes</option>
         </select>
+        <label>
+            <input type="checkbox" id="showAllCheckbox" onchange="toggleShowAll()" {{% if show_all %}} checked {{% endif %}}>
+            Show all nodes
+        </label>
     </div>
     <div id="map">
         {{{{ map_html|safe }}}}  <!-- Corrected formatting for map_html -->
@@ -96,7 +110,6 @@ class Heatmap(BaseCommand):
         self.server_thread = None
         self.is_running = False
         self.url = self.get_setting(str, "heatmap_url", "http://localhost:5000")
-        self.title = self.get_setting(str, "heatmap_title", "Meshtastic Node Heatmap")
         self.port = self.get_setting(int, "heatmap_port", 5000)
         # Set up route for rendering map
         app.route('/')(self.render_map)
@@ -145,16 +158,16 @@ class Heatmap(BaseCommand):
 
     def render_map(self):
         """Render the heatmap using data from the node list."""
+        
+        title = f"Meshtastic Node Heatmap for {self.interface.getMyUser()['longName']} ({self.interface.getMyUser()['id']})"
+        show_all = request.args.get('show_all', 'false').lower() == 'true'
+
         node_data = []
         for n in self.interface.nodes.values():
             node_id = n['user']['id']
             long_name = n['user'].get('longName', 'Unknown')
             snr = n.get('snr', 0)
-            
-            # Check if 'hopsAway' exists and is equal to 0
-            hops_away = n.get('hopsAway', None)
-            #if hops_away != 0:
-            #    continue  # Skip nodes that are not directly heard (hopsAway != 0)
+            hops_away = n.get('hopsAway', 'n/a')
 
             # Only include nodes with valid position data
             if n.get('position') and 'latitude' in n['position'] and 'longitude' in n['position']:
@@ -163,14 +176,16 @@ class Heatmap(BaseCommand):
                 snr_normalized = max(min(snr, 10), -20)  # Normalize SNR to [-20, 10]
                 long_name = n['user'].get("longName", "Unknown")
                 
-                node_data.append({
-                    'node_id': node_id,
-                    'long_name': long_name,
-                    'hopsAway': hopsAway,
-                    'latitude': latitude,
-                    'longitude': longitude,
-                    'snr': snr_normalized
-                })
+                if hops_away == 0 or show_all:
+                    node_data.append({
+                        'node_id': node_id,
+                        'long_name': long_name,
+                        'hopsAway': hops_away,
+                        'latitude': latitude,
+                        'longitude': longitude,
+                        'lastHeard': n.get('lastHeard', None),
+                        'snr': snr_normalized
+                    })
                 
         if node_data:
             avg_lat = sum(d['latitude'] for d in node_data if d['latitude'] is not None) / len(node_data)
@@ -179,22 +194,27 @@ class Heatmap(BaseCommand):
             
             for node in node_data:
                 text_width = len(node['node_id']) * 10.5
+                if node['hopsAway'] == 0:
+                    tooltip = f"{node['long_name']}\nSNR: {node['snr']}"
+                else:
+                    tooltip = f"{node['long_name']}\nHops: {node['hopsAway']}"
+                timestamp = ""
+                if node['lastHeard']:
+                    timestamp = f"\n{datetime.fromtimestamp(node['lastHeard'], local_tz).strftime('%Y-%m-%d %H:%M:%S')}"
                 folium.map.Marker(
                     location=[node['latitude'], node['longitude']],
                     icon=DivIcon(
                         icon_size=(text_width, 36),
                         icon_anchor=(text_width // 2 - 10, 10),
-                        html=f'<div title="{node["long_name"]}\nSNR: {node["snr"]}" style="font-size: 18px; color: blue; text-shadow: 0px 0px 10px rgba(255, 255, 255, 0.7);">{node["node_id"]}</div>',
+                        html=f'<div title="{tooltip}{timestamp}" style="font-size: 18px; color: blue; text-shadow: 0px 0px 10px rgba(255, 255, 255, 0.7);">{node["node_id"]}</div>',
                     )
                 ).add_to(base_map)
-#            heat_data = [[node['latitude'], node['longitude'], node['snr']] for node in node_data]
-            heat_data = [[node['latitude'], node['longitude'], node['snr']] for node in node_data if node['hopsAway'] == 0]
 
+            heat_data = [[node['latitude'], node['longitude'], node['snr']] for node in node_data if node['hopsAway'] == 0]
             folium.plugins.HeatMap(heat_data).add_to(base_map)
             
             map_html = base_map._repr_html_()
-            return render_template_string(HTML_TEMPLATE, title=self.title, map_html=map_html)
+            return render_template_string(HTML_TEMPLATE, title=title, map_html=map_html, show_all=show_all)
         else:
-            log.warning("No nodes available for mapping.")
             return "<p>No nodes available for mapping.</p>"
 
