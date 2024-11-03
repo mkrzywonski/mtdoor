@@ -17,7 +17,7 @@ HTML_TEMPLATE = f"""
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{title}}</title>
+    <title>{{{{ title }}}}</title>
     <style>
         body {{
             font-family: Arial, sans-serif;
@@ -49,13 +49,13 @@ HTML_TEMPLATE = f"""
     </style>
 </head>
 <body>
-    <h1>{{title}}</h1>
+    <h1>{{{{ title }}}}</h1>
     <!-- Refresh Interval Controls -->
     <div id="controls">
         <label for="refreshInterval">Refresh every:</label>
         <select id="refreshInterval">
-            <option value="0">Off</option>
-            <option value="60" selected>1 minute</option>
+            <option value="0" selected>Off</option>
+            <option value="60">1 minute</option>
             <option value="300">5 minutes</option>
             <option value="900">15 minutes</option>
         </select>
@@ -153,8 +153,8 @@ class Heatmap(BaseCommand):
             
             # Check if 'hopsAway' exists and is equal to 0
             hops_away = n.get('hopsAway', None)
-            if hops_away != 0:
-                continue  # Skip nodes that are not directly heard (hopsAway != 0)
+            #if hops_away != 0:
+            #    continue  # Skip nodes that are not directly heard (hopsAway != 0)
 
             # Only include nodes with valid position data
             if n.get('position') and 'latitude' in n['position'] and 'longitude' in n['position']:
@@ -166,6 +166,7 @@ class Heatmap(BaseCommand):
                 node_data.append({
                     'node_id': node_id,
                     'long_name': long_name,
+                    'hopsAway': hopsAway,
                     'latitude': latitude,
                     'longitude': longitude,
                     'snr': snr_normalized
@@ -186,8 +187,9 @@ class Heatmap(BaseCommand):
                         html=f'<div title="{node["long_name"]}\nSNR: {node["snr"]}" style="font-size: 18px; color: blue; text-shadow: 0px 0px 10px rgba(255, 255, 255, 0.7);">{node["node_id"]}</div>',
                     )
                 ).add_to(base_map)
-            
-            heat_data = [[node['latitude'], node['longitude'], node['snr']] for node in node_data]
+#            heat_data = [[node['latitude'], node['longitude'], node['snr']] for node in node_data]
+            heat_data = [[node['latitude'], node['longitude'], node['snr']] for node in node_data if node['hopsAway'] == 0]
+
             folium.plugins.HeatMap(heat_data).add_to(base_map)
             
             map_html = base_map._repr_html_()
