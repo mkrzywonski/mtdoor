@@ -1,3 +1,4 @@
 config.ini
 server.ini
 meshtastic_data.db
+data/*

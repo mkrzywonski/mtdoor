@@ -102,8 +102,8 @@ HTML_TEMPLATE = f"""
 
 class Heatmap(BaseCommand):
     command = "heatmap"
-    description = "Displays a heatmap of node positions"
-    help = "Generate a web-based heatmap of Meshtastic nodes"
+    description = "Generate a web-based heatmap of Meshtastic nodes"
+    help = "heatmap - displays the URL of the web server"
 
     def load(self):
         """Load configuration values and prepare server thread without starting."""
@@ -116,27 +116,12 @@ class Heatmap(BaseCommand):
         self.start_server()
 
     def invoke(self, msg, node):
-        """Handle commands like 'heatmap', 'heatmap start', 'heatmap stop', and 'heatmap restart'."""
+        """Handle command"""
         command = msg.strip().lower()
         if command == "heatmap":
-            return f"View the heatmap at {self.url}"
-        elif command == "heatmap start":
-            if self.is_running:
-                return "Heatmap server is already running."
-            self.start_server()
-            return f"Started heatmap server at {self.url}"
-        elif command == "heatmap stop":
-            if not self.is_running:
-                return "Heatmap server is not currently running."
-            self.stop_server()
-            return "Stopped heatmap server."
-        elif command == "heatmap restart":
-            self.stop_server()
-            time.sleep(1)  # Small delay to ensure server stops
-            self.start_server()
-            return f"Restarted heatmap server at {self.url}"
+            return f"View the heatmap for this node at {self.url}"
         else:
-            return "Invalid command. Use 'heatmap', 'heatmap start', 'heatmap stop', or 'heatmap restart'."
+            return "Invalid command. Use 'heatmap' to display the URL of the heatmap web server."
 
     def start_server(self):
         """Start the Flask server in a new thread."""
