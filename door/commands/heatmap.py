@@ -1,5 +1,7 @@
 import threading
 import folium
+from folium.plugins import HeatMap
+from folium.features import DivIcon
 from flask import Flask, render_template_string
 from . import BaseCommand
 from loguru import logger as log
@@ -9,25 +11,79 @@ import time
 app = Flask(__name__)
 
 # HTML Template for heatmap
-HTML_TEMPLATE = """
+HTML_TEMPLATE = f"""
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>{{ title }}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{title}}</title>
     <style>
-        #map {
+        body {{
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            margin: 0;
+            padding: 0;
+        }}
+        h1 {{
+            font-size: 2rem;
+            margin: 20px;
+            text-align: center;
+        }}
+        #map {{
             width: 100%;
-            height: 90vh;
-            margin: 0 auto;
-        }
+            flex-grow: 1;
+            max-width: 90vw;
+            max-height: 90vh; /* Keep height within viewport */
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }}
+        @media (max-width: 600px) {{
+            h1 {{
+                font-size: 1.5rem;
+            }}
+        }}
     </style>
 </head>
 <body>
-    <h1>{{ title }}</h1>
-    <div id="map">{{ map_html|safe }}</div>
-</body>
-</html>
+    <h1>{{title}}</h1>
+    <!-- Refresh Interval Controls -->
+    <div id="controls">
+        <label for="refreshInterval">Refresh every:</label>
+        <select id="refreshInterval">
+            <option value="0">Off</option>
+            <option value="60" selected>1 minute</option>
+            <option value="300">5 minutes</option>
+            <option value="900">15 minutes</option>
+        </select>
+    </div>
+    <div id="map">
+        {{{{ map_html|safe }}}}  <!-- Corrected formatting for map_html -->
+    </div>
+    <script>
+        let refreshTimer;
+
+        function setRefreshInterval() {{
+            const interval = parseInt(document.getElementById("refreshInterval").value);
+            if (refreshTimer) clearInterval(refreshTimer);
+
+            if (interval > 0) {{
+                refreshTimer = setInterval(() => {{
+                    location.reload();
+                }}, interval * 1000);  // Convert seconds to milliseconds
+            }}
+        }}
+
+        document.getElementById("refreshInterval").addEventListener("change", setRefreshInterval);
+
+        // Set initial interval based on default dropdown value
+        setRefreshInterval();
+    </script>
+    </body>
+    </html>
 """
 
 class Heatmap(BaseCommand):
@@ -89,27 +145,46 @@ class Heatmap(BaseCommand):
 
     def render_map(self):
         """Render the heatmap using data from the node list."""
-        node_data = [
-            {
-                'node_id': n.user.id,
-                'latitude': n.position.latitude if n.position else None,
-                'longitude': n.position.longitude if n.position else None,
-                'snr': n.snr
-            }
-            for n in self.interface.nodes.values()
-            if n.position
-        ]
+        node_data = []
+        for n in self.interface.nodes.values():
+            node_id = n['user']['id']
+            long_name = n['user'].get('longName', 'Unknown')
+            snr = n.get('snr', 0)
+            
+            # Check if 'hopsAway' exists and is equal to 0
+            hops_away = n.get('hopsAway', None)
+            if hops_away != 0:
+                continue  # Skip nodes that are not directly heard (hopsAway != 0)
 
+            # Only include nodes with valid position data
+            if n.get('position') and 'latitude' in n['position'] and 'longitude' in n['position']:
+                latitude = n['position']['latitude']
+                longitude = n['position']['longitude']
+                snr_normalized = max(min(snr, 10), -20)  # Normalize SNR to [-20, 10]
+                long_name = n['user'].get("longName", "Unknown")
+                
+                node_data.append({
+                    'node_id': node_id,
+                    'long_name': long_name,
+                    'latitude': latitude,
+                    'longitude': longitude,
+                    'snr': snr_normalized
+                })
+                
         if node_data:
-            avg_lat = sum(d['latitude'] for d in node_data) / len(node_data)
-            avg_lon = sum(d['longitude'] for d in node_data) / len(node_data)
+            avg_lat = sum(d['latitude'] for d in node_data if d['latitude'] is not None) / len(node_data)
+            avg_lon = sum(d['longitude'] for d in node_data if d['longitude'] is not None) / len(node_data)
             base_map = folium.Map(location=[avg_lat, avg_lon], zoom_start=10)
             
             for node in node_data:
-                folium.Marker(
+                text_width = len(node['node_id']) * 10.5
+                folium.map.Marker(
                     location=[node['latitude'], node['longitude']],
-                    popup=f"SNR: {node['snr']}",
-                    tooltip=f"Node ID: {node['node_id']}"
+                    icon=DivIcon(
+                        icon_size=(text_width, 36),
+                        icon_anchor=(text_width // 2 - 10, 10),
+                        html=f'<div title="{node["long_name"]}\nSNR: {node["snr"]}" style="font-size: 18px; color: blue; text-shadow: 0px 0px 10px rgba(255, 255, 255, 0.7);">{node["node_id"]}</div>',
+                    )
                 ).add_to(base_map)
             
             heat_data = [[node['latitude'], node['longitude'], node['snr']] for node in node_data]
@@ -118,4 +193,6 @@ class Heatmap(BaseCommand):
             map_html = base_map._repr_html_()
             return render_template_string(HTML_TEMPLATE, title=self.title, map_html=map_html)
         else:
+            log.warning("No nodes available for mapping.")
             return "<p>No nodes available for mapping.</p>"
+
