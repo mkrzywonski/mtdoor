@@ -16,26 +16,41 @@ config = configparser.ConfigParser()
 config.read("server.ini")
 AUTH_TOKEN = config.get("global", "auth_token", fallback="")
 MAP_TITLE = config.get("global", "map_title", fallback="Meshtastic Node Heatmap")
+DATABASE = config.get("global", "node_database", fallback="nodes.db")
 
-def store_packet(data):
-    """Insert packet data into the SQLite database."""
-    conn = sqlite3.connect("meshtastic_data.db")
+def store_packet(packet_data):
+    conn = sqlite3.connect(DATABASE)
     cursor = conn.cursor()
-    cursor.execute('''
-        INSERT INTO packets (node_id, long_name, latitude, longitude, snr, rssi, timestamp, distance)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (
-        data.get("node_id"),
-        data.get("long_name"),
-        data.get("latitude"),
-        data.get("longitude"),
-        data.get("snr"),
-        data.get("rssi"),
-        data.get("timestamp"),
-        data.get("distance")
-    ))
+
+    # Create the table if it doesn't exist with node_id as UNIQUE
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS packets (
+            node_id TEXT PRIMARY KEY,
+            long_name TEXT,
+            latitude REAL,
+            longitude REAL,
+            snr REAL,
+            rssi INTEGER,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    # UPSERT operation to update or insert the row
+    cursor.execute("""
+        INSERT INTO packets (node_id, long_name, latitude, longitude, snr, rssi, timestamp)
+        VALUES (:node_id, :long_name, :latitude, :longitude, :snr, :rssi, CURRENT_TIMESTAMP)
+        ON CONFLICT(node_id) DO UPDATE SET
+            long_name=excluded.long_name,
+            latitude=excluded.latitude,
+            longitude=excluded.longitude,
+            snr=excluded.snr,
+            rssi=excluded.rssi,
+            timestamp=CURRENT_TIMESTAMP
+    """, packet_data)
+
     conn.commit()
     conn.close()
+
 
 @app.route('/api/packet-data', methods=['POST'])
 def receive_packet_data():
@@ -50,7 +65,7 @@ def receive_packet_data():
 
 @app.route('/heatmap')
 def heatmap():
-    conn = sqlite3.connect("meshtastic_data.db")
+    conn = sqlite3.connect(DATABASE)
     cursor = conn.cursor()
     cursor.execute('''
         SELECT node_id, long_name, latitude, longitude, snr, rssi
