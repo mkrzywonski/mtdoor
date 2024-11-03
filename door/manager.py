@@ -37,6 +37,8 @@ class DoorManager:
         self.snr_filter = settings.getfloat("global", "heatmap_filter_snr", fallback=6)
         self.server_url = settings.get("global", "server_url", fallback=None)
         self.auth_token = settings.get("global", "server_auth_token", fallback=None)
+        ignore = settings.get("global", "ignore_nodes", fallback=None)
+        self.ignore_nodes = [node.strip() for node in ignore.split(",") if node]  # Clean and split list
 
         # keep track of the commands added, don't let duplicates happen
         self.commands = []
@@ -193,7 +195,7 @@ class DoorManager:
 
         # Step 1: Check if packet is from the local node
         node_id = packet["fromId"]
-        if node_id == self.me:
+        if node_id == self.me or node_id in self.ignore_nodes:
             return
 
         log.info(f"Received packet from node: {node_id}")

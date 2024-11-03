@@ -15,12 +15,12 @@ app = Flask(__name__)
 config = configparser.ConfigParser()
 config.read("server.ini")
 AUTH_TOKEN = config.get("global", "auth_token", fallback="")
+MAP_TITLE = config.get("global", "map_title", fallback="Meshtastic Node Heatmap")
 
 def store_packet(data):
     """Insert packet data into the SQLite database."""
     conn = sqlite3.connect("meshtastic_data.db")
     cursor = conn.cursor()
-
     cursor.execute('''
         INSERT INTO packets (node_id, long_name, latitude, longitude, snr, rssi, timestamp, distance)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -34,7 +34,6 @@ def store_packet(data):
         data.get("timestamp"),
         data.get("distance")
     ))
-
     conn.commit()
     conn.close()
 
@@ -43,11 +42,9 @@ def receive_packet_data():
     auth_header = request.headers.get("Authorization")
     if not auth_header or auth_header.split()[1] != AUTH_TOKEN:
         return jsonify({"error": "Unauthorized"}), 401
-
     data = request.json
     if not data:
         return jsonify({"error": "No data received"}), 400
-
     store_packet(data)
     return jsonify({"status": "success", "received": data}), 200
 
@@ -55,8 +52,6 @@ def receive_packet_data():
 def heatmap():
     conn = sqlite3.connect("meshtastic_data.db")
     cursor = conn.cursor()
-    
-    # Fetch the latest data for each node
     cursor.execute('''
         SELECT node_id, long_name, latitude, longitude, snr, rssi
         FROM packets
@@ -70,7 +65,7 @@ def heatmap():
     conn.close()
 
     # Create a base map centered around a default location
-    base_map = folium.Map(location=[30.0, -97.8], zoom_start=10)  # Adjust location as needed
+    base_map = folium.Map(location=[30.0, -97.8], zoom_start=10)
 
     # Prepare data for the heatmap layer
     min_snr = -20
@@ -79,27 +74,97 @@ def heatmap():
         [lat, lon, (snr - min_snr) / (max_snr - min_snr)]
         for _, _, lat, lon, snr, _ in data if lat and lon
     ]
-
-    # Add the heatmap layer with SNR values
     HeatMap(heat_data).add_to(base_map)
 
-    # Add a marker for each node with the desired tooltip and popup
+    # Add a marker for each node with the tooltip and popup
     for node_id, long_name, lat, lon, snr, rssi in data:
         if lat and lon:
-            text_width = len(node_id) * 10.5  # Adjust multiplier as needed for font size
+            text_width = len(node_id) * 10.5
             folium.map.Marker(
                 [lat, lon],
                 icon=DivIcon(
-                    icon_size = (text_width, 36),
-                    icon_anchor = (text_width // 2 - 10, 10),
-                    html=f'<div title="SNR: {snr}, RSSI: {rssi}" style="font-size: 18px; color: blue; text-shadow: 0px 0px 10px rgba(255, 255, 255, 255);">{node_id}</div>',
+                    icon_size=(text_width, 36),
+                    icon_anchor=(text_width // 2 - 10, 10),
+                    html=f'<div title="SNR: {snr}, RSSI: {rssi}" style="font-size: 18px; color: blue; text-shadow: 0px 0px 10px rgba(255, 255, 255, 0.7);">{node_id}</div>',
                 )
             ).add_to(base_map)
 
-    # Render map to HTML and return
-    return render_template_string(base_map._repr_html_())
+    # Render the map within a styled HTML template
+    html_template = f"""
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>{MAP_TITLE}</title>
+        <style>
+            body {{
+                font-family: Arial, sans-serif;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                margin: 0;
+                padding: 0;
+            }}
+            h1 {{
+                font-size: 2rem;
+                margin: 20px;
+                text-align: center;
+            }}
+            #map {{
+                width: 100%;
+                flex-grow: 1;
+                max-width: 90vw;
+                max-height: 90vh; /* Keep height within viewport */
+                border-radius: 8px;
+                box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            }}
+            @media (max-width: 600px) {{
+                h1 {{
+                    font-size: 1.5rem;
+                }}
+            }}
+        </style>
+    </head>
+    <body>
+        <h1>{MAP_TITLE}</h1>
+        <!-- Refresh Interval Controls -->
+        <div id="controls">
+            <label for="refreshInterval">Refresh every:</label>
+            <select id="refreshInterval">
+                <option value="0">Off</option>
+                <option value="30">30 seconds</option>
+                <option value="60" selected>1 minute</option>
+                <option value="300">5 minutes</option>
+            </select>
+        </div>
+        <div id="map">
+            {{{{ map_html|safe }}}}  <!-- Corrected formatting for map_html -->
+        </div>
+        <script>
+            let refreshTimer;
 
+            function setRefreshInterval() {{
+                const interval = parseInt(document.getElementById("refreshInterval").value);
+                if (refreshTimer) clearInterval(refreshTimer);
+
+                if (interval > 0) {{
+                    refreshTimer = setInterval(() => {{
+                        location.reload();
+                    }}, interval * 1000);  // Convert seconds to milliseconds
+                }}
+            }}
+
+            document.getElementById("refreshInterval").addEventListener("change", setRefreshInterval);
+
+            // Set initial interval based on default dropdown value
+            setRefreshInterval();
+        </script>
+        </body>
+        </html>
+    """
+    return render_template_string(html_template, map_html=base_map._repr_html_())
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
-
