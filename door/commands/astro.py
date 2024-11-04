@@ -143,18 +143,18 @@ class Astro(BaseCommand):
             altitude, azimuth = solar_position(latitude, longitude)
             rise, set = sun_rise_set_times(latitude, longitude)
             return (f"🌞 altitude: {altitude}°, azimuth: {azimuth}°\n"
-                    f"🌅 Sunrise: {rise.strftime('%m-%d %H:%M')}\n"
-                    f"🌇 Sunset: {set.strftime('%m-%d %H:%M')}")
+                    f"🌅 Next Sunrise: {rise.strftime('%m-%d %H:%M')}\n"
+                    f"🌇 Next Sunset: {set.strftime('%m-%d %H:%M')}")
 
         elif "moon" in msg.lower():
             phase = moon_phase()
             rise, set = moon_rise_set_times(latitude, longitude)
             return (f"{phase}\n"
-                    f"🌕 Moonrise: {rise.strftime('%m-%d %H:%M') if rise else 'N/A'}\n"
-                    f"🌑 Moonset: {set.strftime('%m-%d %H:%M') if set else 'N/A'}")
+                    f"🌕 Next Moonrise: {rise.strftime('%m-%d %H:%M') if rise else 'N/A'}\n"
+                    f"🌑 Next Moonset: {set.strftime('%m-%d %H:%M') if set else 'N/A'}")
 
         else:
-            return "Unknown sub-command."
+            return "Send 'astro sun' or 'astro moon' for astronomical data"
 
 def get_timezone(latitude, longitude):
     """Determine the timezone based on latitude and longitude."""

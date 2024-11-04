@@ -6,3 +6,7 @@ openai
 feedparser
 pytz
 timezonefinder
+wakepy
+flask
+folium
+

@@ -4,11 +4,10 @@ from loguru import logger as log
 
 from . import BaseCommand, CommandRunError, CommandLoadError
 
-SYSTEM_PROMPT = """Respond only as Marvin the Paranoid Android from Hitchhiker's Guide to the Galaxy. Keep answers in plain text and under 200 characters."""
 MAX_TOKENS = 58
 
-MODEL = "gpt-3.5-turbo"
-
+#MODEL = "gpt-3.5-turbo"
+MODEL = "gpt-4o-mini"
 
 class ChatGPT(BaseCommand):
     command = "llm"
@@ -23,9 +22,17 @@ class ChatGPT(BaseCommand):
         self.max_tokens = MAX_TOKENS
         self.client = OpenAI()
         self.token_count = 0
+        node_id=self.interface.getMyNodeInfo()['user']['id']
+        shortName=self.interface.getMyNodeInfo()['user']['shortName']
+        longName=self.interface.getMyNodeInfo()['user']['longName']
+        hwModel=self.interface.getMyNodeInfo()['user']['hwModel']
+        firmware=self.interface.metadata.firmware_version
+
+        self.SYSTEM_PROMPT = f"You are the personality behind a meshtastic node in Buda, TX. The node operator's name is Mike, and the node hardware is a '{hwModel}' running firmware version {firmware}. The node ID is {node_id}, the short name is '{shortName}', and the long name is '{longName}'. Users can contact Mike by sending the 'msg' command to this node followed by the text of their message. The node also supports a 'ping' command that will reply with SNR and RSSI radio data and a 'heatmap' command which responds with the URL for a live heatmap showing other connected nodes in the area. This meshtastic node serves as a rooftop relay for other nodes and is not actively monitored by a human, so you are in charge of interacting with any users who may send messages. Try to be as helpful as possible for simple queries and give brief answers. In general stick to topics related to meshtastic, ham radio, computers and technology. Keep answers in plain text and under 200 characters."
+
 
     def reset(self, node: str):
-        self.conversations[node] = [{"role": "system", "content": SYSTEM_PROMPT}]
+        self.conversations[node] = [{"role": "system", "content": self.SYSTEM_PROMPT}]
         
     def add_message(self, node: str, message: str):
         if node not in self.conversations:
