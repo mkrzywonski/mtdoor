@@ -137,7 +137,7 @@ class Heatmap(BaseCommand):
     def render_map(self):
         """Render the heatmap using data from the node list."""
         
-        title = f"Meshtastic Node Heatmap for {self.interface.getMyUser()['longName']} ({self.interface.getMyUser()['id']})"
+        title = f"Meshtastic Node Heatmap for {self.interface.getMyUser()['longName']} ({self.interface.getMyUser()['shortName']})"
         show_all = request.args.get('show_all', 'false').lower() == 'true'
 
         node_data = []
