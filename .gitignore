@@ -1,5 +1,4 @@
-config.ini
-server.ini
+*.ini
 meshtastic_data.db
 data/*
 __pycache__/
