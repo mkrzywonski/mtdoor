@@ -21,6 +21,8 @@ class DoorManager:
         self.interface = interface
         self.settings = settings
         self.me = interface.getMyUser()["id"]
+        self.shortName=self.interface.getMyNodeInfo()['user']['shortName']
+        self.longName=self.interface.getMyNodeInfo()['user']['longName']
 
         # keep track of the commands added, don't let duplicates happen
         self.commands = []
@@ -100,7 +102,7 @@ class DoorManager:
 
     def help_message(self):
         invoke_list = ", ".join([cmd.command for cmd in self.commands])
-        return f"Hi, I am a bot.\n\nTry one of these commands: {invoke_list} or 'help <command>'."
+        return f"{self.longName} ({self.shortName})\n\nTry one of these commands: {invoke_list} or 'help <command>'."
 
     def help_command(self, command: BaseCommand) -> str:
         """build a help message for the given command
@@ -131,7 +133,7 @@ class DoorManager:
 
         log.info(f"RX {node} ({len(msg):>3}): {msg}")
 
-        # show signal strength data for sending node
+        # Respond to pings with signal strength
         if msg.lower()[:4] == "ping":
             response = f"Received ping from node {node}\nHops: {hops}\nSNR: {snr}\nRSSI: {rssi}"
             pub.sendMessage(self.dm_topic, message=response, node=node)
@@ -146,6 +148,12 @@ class DoorManager:
                 )
                 return
 
+        # show global help info
+        if msg.lower()[:4] == "help":
+            response = self.help_message()
+            pub.sendMessage(self.dm_topic, message=response, node=node)
+            return
+
         # look for a regular command handler
         handler = self.get_command_handler(msg.lower())
         if handler:
@@ -154,7 +162,14 @@ class DoorManager:
             except CommandRunError:
                 response = f"Command to '{handler.command}' failed."
         else:
-            response = self.help_message()
+            handler = self.get_command_handler('llm')
+            if handler:
+                try:
+                    response = handler.invoke(f"llm {msg}", node)
+                except CommandRunError:
+                    response = f"Command to '{handler.command}' failed."
+            else:
+                response = self.help_message()
 
         # command handlers may or may not return a response
         # they have the option of handling it themselves on long-running tasks

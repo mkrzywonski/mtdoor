@@ -1,4 +1,5 @@
 import threading
+import logging
 import folium
 from folium.plugins import HeatMap
 from folium.features import DivIcon
@@ -108,7 +109,6 @@ class Heatmap(BaseCommand):
     def load(self):
         """Load configuration values and prepare server thread without starting."""
         self.server_thread = None
-        self.is_running = False
         self.url = self.get_setting(str, "heatmap_url", "http://localhost:5000")
         self.port = self.get_setting(int, "heatmap_port", 5000)
         # Set up route for rendering map
@@ -128,14 +128,7 @@ class Heatmap(BaseCommand):
         self.server_thread = threading.Thread(target=self._run_server)
         self.server_thread.daemon = True
         self.server_thread.start()
-        self.is_running = True
         log.info("Heatmap server started.")
-
-    def stop_server(self):
-        """Stop the server by shutting down Flask."""
-        # Use an internal Flask method to stop the server
-        self.is_running = False
-        log.info("Heatmap server stopped.")
 
     def _run_server(self):
         """Run the Flask server."""
@@ -151,6 +144,7 @@ class Heatmap(BaseCommand):
         for n in self.interface.nodes.values():
             node_id = n['user']['id']
             long_name = n['user'].get('longName', 'Unknown')
+            short_name = n['user'].get('shortName', 'Unknown')
             snr = n.get('snr', 0)
             hops_away = n.get('hopsAway', 'n/a')
 
@@ -165,6 +159,7 @@ class Heatmap(BaseCommand):
                     node_data.append({
                         'node_id': node_id,
                         'long_name': long_name,
+                        'short_name': short_name,
                         'hopsAway': hops_away,
                         'latitude': latitude,
                         'longitude': longitude,
@@ -178,7 +173,7 @@ class Heatmap(BaseCommand):
             base_map = folium.Map(location=[avg_lat, avg_lon], zoom_start=10)
             
             for node in node_data:
-                text_width = len(node['node_id']) * 10.5
+                text_width = len(node['short_name']) * 10.5
                 if node['hopsAway'] == 0:
                     tooltip = f"{node['long_name']}\nSNR: {node['snr']}"
                 else:
@@ -190,13 +185,21 @@ class Heatmap(BaseCommand):
                     location=[node['latitude'], node['longitude']],
                     icon=DivIcon(
                         icon_size=(text_width, 36),
-                        icon_anchor=(text_width // 2 - 10, 10),
-                        html=f'<div title="{tooltip}{timestamp}" style="font-size: 18px; color: blue; text-shadow: 0px 0px 10px rgba(255, 255, 255, 0.7);">{node["node_id"]}</div>',
+                        #icon_anchor=(text_width / 2 - 20, 10),
+                        html=f'<div title="{tooltip}{timestamp}" style="font-size: 18px; color: blue; text-shadow: 0px 0px 10px rgba(255, 255, 255, 0.7);">{node["short_name"]}</div>',
                     )
                 ).add_to(base_map)
 
-            heat_data = [[node['latitude'], node['longitude'], node['snr']] for node in node_data if node['hopsAway'] == 0]
+            heat_data = [[node['latitude'], node['longitude'], node['snr']] 
+                for node in node_data if node['hopsAway'] == 0]
             folium.plugins.HeatMap(heat_data).add_to(base_map)
+
+            folium.plugins.Fullscreen(
+                position="topright",
+                title="Full Screen",
+                title_cancel="Exit Full Screen",
+                force_separate_button=True,
+            ).add_to(base_map)
             
             map_html = base_map._repr_html_()
             return render_template_string(HTML_TEMPLATE, title=title, map_html=map_html, show_all=show_all)
