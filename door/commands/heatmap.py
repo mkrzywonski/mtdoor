@@ -55,7 +55,7 @@ HTML_TEMPLATE = f"""
     <script>
         function toggleShowAll() {{
             let showAll = document.getElementById("showAllCheckbox").checked;
-            window.location.href = `/?show_all=${{showAll}}`;
+            window.location.href = `?show_all=${{showAll}}`;
         }}
     </script>
 </head>
