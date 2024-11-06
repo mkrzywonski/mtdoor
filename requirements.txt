@@ -9,4 +9,4 @@ timezonefinder
 wakepy
 flask
 folium
-
+ipinfo
