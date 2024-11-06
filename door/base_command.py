@@ -140,12 +140,12 @@ class BaseCommand:
         if n.get('position') and 'latitude' in n['position'] and 'longitude' in n['position']:
             latitude = self.interface.getMyNodeInfo()['position']['latitude']
             longitude = self.interface.getMyNodeInfo()['position']['longitude']
-            log.debug(f"Got position from node: lat={latitude} lon={longitude}")
+            log.info(f"Got position from node: lat={latitude} lon={longitude}")
         elif self.get_setting(str, 'default_latitude') and self.get_setting(str, 'default_longitude'):
             latitude = self.get_setting(str, 'default_latitude')
             longitude = self.get_setting(str, 'default_longitude')
-            log.debug(f"Got default position from config file: lat={latitude} lon={longitude}")
+            log.info(f"Got default position from config file: lat={latitude} lon={longitude}")
         else:
             latitude, longitude = self.get_ip_coordinates()
-            log.debug(f"Geolocated position from ip address: lat={latitude} lon={longitude}")
+            log.info(f"Geolocated position from ip address: lat={latitude} lon={longitude}")
         return latitude, longitude 
