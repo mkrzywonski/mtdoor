@@ -169,9 +169,7 @@ class Weather(BaseCommand):
     station_info: StationInfo
 
     def load(self):
-        # TODO move these to configuration or ask the Meshtastic node
-        self.latitude = float(os.getenv("DEFAULT_LATITUDE", 30.073088))
-        self.longitude = float(os.getenv("DEFAULT_LONGITUDE", -97.817800))
+        self.latitude, self.longitude = self.get_coordinates()
 
         # loading fails if we can't reach the weather API
         try:

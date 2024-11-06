@@ -118,8 +118,7 @@ class Astro(BaseCommand):
     longitude: float
 
     def load(self):
-        self.latitude = float(os.getenv("DEFAULT_LATITUDE", 30.073086))
-        self.longitude = float(os.getenv("DEFAULT_LONGITUDE", -97.817795))
+        self.latitude, self.longitude = self.get_coordinates()
 
         # run each function to make sure required resources are loaded
         try:
