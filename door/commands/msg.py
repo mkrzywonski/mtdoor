@@ -21,15 +21,17 @@ class Msg(BaseCommand):
 
         # Retrieve the long name and ID of the local node
         local_node_info = self.interface.getMyNodeInfo()
-        local_node_name = local_node_info['user']['longName']
+        local_node_long_name = local_node_info['user']['longName']
+        local_node_short_name = local_node_info['user']['shortName']
         local_node_id = local_node_info['user']['id']
     
         # Retrieve the long name of the sending node
         sender_info = self.interface.nodes.get(node)
         sender_long_name = sender_info['user']['longName'] if sender_info else "Unknown Sender"
+        sender_short_name = sender_info['user']['shortName'] if sender_info else "node"
 
 
-        full_message = f"From: {sender_long_name} ({node})\nTo: {local_node_name} ({local_node_id})\n{msg[len('msg '):].strip()}"
+        full_message = f"From: {sender_long_name} ({sender_short_name})\nTo: {local_node_name} ({local_node_short_name})\n{msg[len('msg '):].strip()}"
         headers = {
             "Authorization": f"Bearer {self.access_token}"
         }
