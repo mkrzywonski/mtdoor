@@ -6,8 +6,10 @@ from skyfield import almanac
 import pytz
 from loguru import logger as log
 from . import BaseCommand, CommandLoadError
-from skyfield.api import load, Topos
+from skyfield.api import Loader, Topos
 from timezonefinder import TimezoneFinder
+
+load = Loader('./data/')
 
 def solar_position(
     latitude,
