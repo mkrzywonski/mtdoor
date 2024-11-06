@@ -18,9 +18,10 @@ class ChatGPT(BaseCommand):
     token_count: int
 
     def load(self):
+        api_key = self.get_setting(str, "OPENAI_API_KEY")
         self.conversations = {}
         self.max_tokens = MAX_TOKENS
-        self.client = OpenAI()
+        self.client = OpenAI(api_key=api_key)
         self.token_count = 0
         node_id=self.interface.getMyNodeInfo()['user']['id']
         shortName=self.interface.getMyNodeInfo()['user']['shortName']
