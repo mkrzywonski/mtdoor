@@ -46,6 +46,21 @@ HTML_TEMPLATE = f"""
             border-radius: 8px;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
         }}
+        table {{
+            margin-top: 20px;
+            border-collapse: collapse;
+            width: 90%;
+            max-width: 800px;
+        }}
+        th, td {{
+            padding: 12px 20px; /* Adjust padding to increase space */
+            border: 1px solid #ddd;
+            text-align: center;
+        }}
+        th {{
+            background-color: #f4f4f4;
+            font-weight: bold;
+        }}
         @media (max-width: 600px) {{
             h1 {{
                 font-size: 1.5rem;
@@ -78,6 +93,35 @@ HTML_TEMPLATE = f"""
     <div id="map">
         {{{{ map_html|safe }}}}  <!-- Corrected formatting for map_html -->
     </div>
+    <!-- Node Data Table -->
+    <table>
+        <thead>
+            <tr>
+                <th>Node ID</th>
+                <th>Long Name</th>
+                <th>Short Name</th>
+                <th>Hops Away</th>
+                <th>Latitude</th>
+                <th>Longitude</th>
+                <th>Last Heard</th>
+                <th>SNR</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{% for node in node_data %}}
+            <tr>
+                <td>{{{{ node['node_id'] }}}}</td>
+                <td>{{{{ node['long_name'] }}}}</td>
+                <td>{{{{ node['short_name'] }}}}</td>
+                <td>{{{{ node['hopsAway'] }}}}</td>
+                <td>{{{{ node['latitude'] }}}}</td>
+                <td>{{{{ node['longitude'] }}}}</td>
+                <td>{{{{ node['age'] | default("N/A") }}}}</td>
+                <td>{{{{ node['snr'] }}}}</td>
+            </tr>
+            {{% endfor %}}
+        </tbody>
+    </table>
     <script>
         let refreshTimer;
 
@@ -147,9 +191,10 @@ class Heatmap(BaseCommand):
             short_name = n['user'].get('shortName', 'Unknown')
             snr = n.get('snr', 0)
             hops_away = n.get('hopsAway', 'n/a')
+            age = int((int(time.time()) - int(n.get('lastHeard', 0))) / 60)
 
-            # Only include nodes with valid position data
-            if n.get('position') and 'latitude' in n['position'] and 'longitude' in n['position']:
+            # Only include nodes with valid position data and less that one day old
+            if n.get('position') and 'latitude' in n['position'] and 'longitude' in n['position'] and age < (24 * 60 ):
                 latitude = n['position']['latitude']
                 longitude = n['position']['longitude']
                 snr_normalized = max(min(snr, 10), -20)  # Normalize SNR to [-20, 10]
@@ -164,6 +209,7 @@ class Heatmap(BaseCommand):
                         'latitude': latitude,
                         'longitude': longitude,
                         'lastHeard': n.get('lastHeard', None),
+                        'age': f'{age} minutes ago',
                         'snr': snr_normalized
                     })
                 
@@ -185,7 +231,6 @@ class Heatmap(BaseCommand):
                     location=[node['latitude'], node['longitude']],
                     icon=DivIcon(
                         icon_size=(text_width, 36),
-                        #icon_anchor=(text_width / 2 - 20, 10),
                         html=f'<div title="{tooltip}{timestamp}" style="font-size: 18px; color: blue; text-shadow: 0px 0px 10px rgba(255, 255, 255, 0.7);">{node["short_name"]}</div>',
                     )
                 ).add_to(base_map)
@@ -202,7 +247,7 @@ class Heatmap(BaseCommand):
             ).add_to(base_map)
             
             map_html = base_map._repr_html_()
-            return render_template_string(HTML_TEMPLATE, title=title, map_html=map_html, show_all=show_all)
+            return render_template_string(HTML_TEMPLATE, title=title, map_html=map_html, show_all=show_all, node_data=node_data)
         else:
             return "<p>No nodes available for mapping.</p>"
 
