@@ -150,6 +150,19 @@ class Heatmap(BaseCommand):
     description = "Generate a web-based heatmap of Meshtastic nodes"
     help = "heatmap - displays the URL of the web server"
 
+    def format_time(self, seconds):
+        if seconds < 60:
+            return f"{seconds} seconds"
+        elif seconds < 3600:
+            minutes = int(seconds // 60)
+            return f"{minutes} minute{'s' if minutes > 1 else ''}"
+        elif seconds < 86400:
+            hours = int(seconds // 3600)
+            return f"{hours} hour{'s' if hours > 1 else ''}"
+        else:
+            days = int(seconds // 86400)
+            return f"{days} day{'s' if days > 1 else ''}"
+
     def load(self):
         """Load configuration values and prepare server thread without starting."""
         self.server_thread = None
@@ -158,6 +171,7 @@ class Heatmap(BaseCommand):
         # Set up route for rendering map
         app.route('/')(self.render_map)
         self.start_server()
+        self.latitude, self.longitude = self.get_coordinates()
 
     def invoke(self, msg, node):
         """Handle command"""
@@ -192,7 +206,7 @@ class Heatmap(BaseCommand):
             snr = n.get('snr', 0)
             hops_away = n.get('hopsAway', 'n/a')
             if n.get('lastHeard'):
-                age = f"{int((int(time.time()) - int(n.get('lastHeard'))) / 60)} minutes ago"
+                age = f"{self.format_time((int(time.time()) - int(n.get('lastHeard'))))} ago"
             else:
                 age = "n/a"
 
@@ -223,7 +237,7 @@ class Heatmap(BaseCommand):
         if node_data:
             #avg_lat = sum(d['latitude'] for d in node_data if d['latitude'] is not None) / len(node_data)
             #avg_lon = sum(d['longitude'] for d in node_data if d['longitude'] is not None) / len(node_data)
-            base_map = folium.Map(location=self.get_coordinates(), zoom_start=10)
+            base_map = folium.Map(location=[self.latitude, self.longitude], zoom_start=10)
             
             for node in node_data:
                 text_width = len(node['short_name']) * 10.5
