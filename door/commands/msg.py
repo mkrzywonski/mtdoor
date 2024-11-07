@@ -31,7 +31,7 @@ class Msg(BaseCommand):
         sender_short_name = sender_info['user']['shortName'] if sender_info else "node"
 
 
-        full_message = f"From: {sender_long_name} ({sender_short_name})\nTo: {local_node_name} ({local_node_short_name})\n{msg[len('msg '):].strip()}"
+        full_message = f"From: {sender_long_name} ({sender_short_name})\nTo: {local_node_long_name} ({local_node_short_name})\n{msg[len('msg '):].strip()}"
         headers = {
             "Authorization": f"Bearer {self.access_token}"
         }
