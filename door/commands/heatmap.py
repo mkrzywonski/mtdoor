@@ -200,6 +200,10 @@ class Heatmap(BaseCommand):
             if n.get('position') and 'latitude' in n['position'] and 'longitude' in n['position']:
                 latitude = n['position']['latitude']
                 longitude = n['position']['longitude']
+            else:
+                latitude = None
+                longitude = None
+            if True:
                 snr_normalized = max(min(snr, 10), -20)  # Normalize SNR to [-20, 10]
                 long_name = n['user'].get("longName", "Unknown")
                 
@@ -217,9 +221,9 @@ class Heatmap(BaseCommand):
                     })
                 
         if node_data:
-            avg_lat = sum(d['latitude'] for d in node_data if d['latitude'] is not None) / len(node_data)
-            avg_lon = sum(d['longitude'] for d in node_data if d['longitude'] is not None) / len(node_data)
-            base_map = folium.Map(location=[avg_lat, avg_lon], zoom_start=10)
+            #avg_lat = sum(d['latitude'] for d in node_data if d['latitude'] is not None) / len(node_data)
+            #avg_lon = sum(d['longitude'] for d in node_data if d['longitude'] is not None) / len(node_data)
+            base_map = folium.Map(location=self.get_coordinates(), zoom_start=10)
             
             for node in node_data:
                 text_width = len(node['short_name']) * 10.5
@@ -230,16 +234,17 @@ class Heatmap(BaseCommand):
                 timestamp = ""
                 if node['lastHeard']:
                     timestamp = f"\n{datetime.fromtimestamp(node['lastHeard'], local_tz).strftime('%Y-%m-%d %H:%M:%S')}"
-                folium.map.Marker(
-                    location=[node['latitude'], node['longitude']],
-                    icon=DivIcon(
-                        icon_size=(text_width, 36),
-                        html=f'<div title="{tooltip}{timestamp}" style="font-size: 18px; color: blue; text-shadow: 0px 0px 10px rgba(255, 255, 255, 0.7);">{node["short_name"]}</div>',
-                    )
-                ).add_to(base_map)
+                if node['latitude'] and node['longitude']:
+                    folium.map.Marker(
+                        location=[node['latitude'], node['longitude']],
+                        icon=DivIcon(
+                            icon_size=(text_width, 36),
+                            html=f'<div title="{tooltip}{timestamp}" style="font-size: 18px; color: blue; text-shadow: 0px 0px 10px rgba(255, 255, 255, 0.7);">{node["short_name"]}</div>',
+                        )
+                    ).add_to(base_map)
 
             heat_data = [[node['latitude'], node['longitude'], node['snr']] 
-                for node in node_data if node['hopsAway'] == 0]
+                for node in node_data if node['hopsAway'] == 0 and node['latitude'] and node['longitude']]
             folium.plugins.HeatMap(heat_data).add_to(base_map)
 
             folium.plugins.Fullscreen(
