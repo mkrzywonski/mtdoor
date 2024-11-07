@@ -191,10 +191,13 @@ class Heatmap(BaseCommand):
             short_name = n['user'].get('shortName', 'Unknown')
             snr = n.get('snr', 0)
             hops_away = n.get('hopsAway', 'n/a')
-            age = int((int(time.time()) - int(n.get('lastHeard', 0))) / 60)
+            if n.get('lastHeard'):
+                age = f"{int((int(time.time()) - int(n.get('lastHeard'))) / 60)} minutes ago"
+            else:
+                age = "n/a"
 
             # Only include nodes with valid position data and less that one day old
-            if n.get('position') and 'latitude' in n['position'] and 'longitude' in n['position'] and age < (24 * 60 ):
+            if n.get('position') and 'latitude' in n['position'] and 'longitude' in n['position']:
                 latitude = n['position']['latitude']
                 longitude = n['position']['longitude']
                 snr_normalized = max(min(snr, 10), -20)  # Normalize SNR to [-20, 10]
@@ -209,7 +212,7 @@ class Heatmap(BaseCommand):
                         'latitude': latitude,
                         'longitude': longitude,
                         'lastHeard': n.get('lastHeard', None),
-                        'age': f'{age} minutes ago',
+                        'age': age,
                         'snr': snr_normalized
                     })
                 
