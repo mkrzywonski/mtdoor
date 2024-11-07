@@ -148,4 +148,5 @@ class BaseCommand:
         else:
             latitude, longitude = self.get_ip_coordinates()
             log.info(f"Geolocated position from ip address: lat={latitude} lon={longitude}")
-        return latitude, longitude 
+        if latitude and longitude:
+            return float(latitude), float(longitude)
