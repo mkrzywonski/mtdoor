@@ -23,6 +23,7 @@ class DoorManager:
         self.me = interface.getMyUser()["id"]
         self.shortName=self.interface.getMyNodeInfo()['user']['shortName']
         self.longName=self.interface.getMyNodeInfo()['user']['longName']
+        self.state = {}
 
         # keep track of the commands added, don't let duplicates happen
         self.commands = []
@@ -130,8 +131,42 @@ class DoorManager:
         hops = packet['hopStart'] - packet['hopLimit']
         msg: str = packet["decoded"]["payload"].decode("utf-8")
         response = None
+        command = msg.lower().split()[0]
 
         log.info(f"RX {node} ({len(msg):>3}): {msg}")
+
+        # Check for ongoing session with previous command
+        log.debug("New message, checking state")
+        if self.state.get(node, False):
+            log.debug("node state is set")
+            log.debug(f"Node state: {self.state[node]}")
+            handler = self.get_command_handler(self.state[node])
+            if handler:
+                log.debug(f"Got handler: {handler}")
+                if handler.continue_session(node):
+                    log.debug("Continuing session")
+                    try:
+                        log.debug("Calling command handler")
+                        response = handler.invoke(msg, node)
+                    except CommandRunError:
+                        log.debug("Command handler failed")
+                        response = f"Command to '{handler.command}' failed."
+                else:
+                    log.debug(f"Continue session: {handler.continue_session(node)}")
+                    log.debug(f"Clearing node state")
+                    self.state[node] = None
+        else:
+            log.debug("node state is NOT set")
+            log.debug("Setting node state")
+            self.state[node] = command
+            log.debug(f"Node state: {self.state[node]}")
+
+        if response:
+            log.debug("Got response for continued session")
+            pub.sendMessage(self.dm_topic, message=response, node=node)
+            return
+
+        log.debug("No response for continued session")
 
         # Respond to pings with signal strength
         if msg.lower()[:4] == "ping":
