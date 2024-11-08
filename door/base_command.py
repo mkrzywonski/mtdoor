@@ -51,6 +51,13 @@ class BaseCommand:
     # global settings object
     settings: ConfigParser
 
+    # Persistent session states
+    session = {}
+
+    def continue_session(self, node: str):
+        log.debug(self.session.get(node, False))
+        return self.session.get(node, False)
+
     def load(self):
         """
         raise CommandLoadError if we don't have resources necessary to operate
