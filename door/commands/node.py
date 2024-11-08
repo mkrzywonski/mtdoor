@@ -30,8 +30,10 @@ def format_node_detail(n: NodeInfo) -> str:
 
     reply = f"""ID: {n.user.id}
 Name: {n.user.longName} ({n.user.shortName})
-Last heard {n.last_heard.strftime("%Y-%m-%d %H:%M")}
 SNR {n.snr}, Hops {n.hopsAway}"""
+    if n.last_heard:
+        reply += f'\nLast heard {n.last_heard.strftime("%Y-%m-%d %H:%M")}'
+
 
     if n.position:
         reply += f"""
